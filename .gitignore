@@ -1,0 +1,8 @@
+# Environment folders
+.idea
+venv
+__pycache__
+
+# Data
+data
+model
