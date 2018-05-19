@@ -8,7 +8,8 @@ from random import choice, choices, shuffle
 import model
 
 model_path = 'model/omniglot/model.ckpt'
-size = 105 * 105
+width = 105
+height = 105
 
 """
 {
@@ -59,8 +60,8 @@ def get_files(dataset='train', array=False):
 
 def train():
     learning_rate = 5e-4
-    num_iterations = 500_000
-    batch_size = 128
+    num_iterations = 200_000
+    batch_size = 16
 
     l = get_files('train', array=True)
     pairs = []
@@ -84,7 +85,7 @@ def train():
             image_string = tf.read_file(s)
             image_decoded = tf.image.decode_png(image_string)
             image_inverted = tf.bitwise.invert(image_decoded)
-            image_resized = tf.reshape(image_inverted, (size,))
+            image_resized = tf.reshape(image_inverted, (height, width, 1))
             return tf.divide(image_resized, 255)
         im1, im2 = map(str_to_img, (x1, x2))
         return im1, im2, y_
@@ -97,12 +98,14 @@ def train():
     iterator = dataset.make_one_shot_iterator()
     next_element = iterator.get_next()
 
-    siamese = model.Siamese(size)
+    siamese = model.Siamese(height, width)
     optimizer = tf.train.AdamOptimizer(learning_rate)
     train_step = optimizer.minimize(siamese.loss)
     saver = tf.train.Saver()
 
-    with tf.Session() as sess:
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    with tf.Session(config=config) as sess:
         sess.run(tf.global_variables_initializer())
 
         for i in range(num_iterations):
@@ -163,5 +166,5 @@ def test():
 
 
 if __name__ == '__main__':
-    # train()
-    test()
+    train()
+    # test()

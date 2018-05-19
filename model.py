@@ -1,9 +1,11 @@
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
+
 
 class Siamese:
-    def __init__(self, size=784):
-        self.x1 = tf.placeholder(tf.float32, [None, size])
-        self.x2 = tf.placeholder(tf.float32, [None, size])
+    def __init__(self, height, width):
+        self.x1 = tf.placeholder(tf.float32, [None, height, width, 1])
+        self.x2 = tf.placeholder(tf.float32, [None, height, width, 1])
 
         with tf.variable_scope('siamese') as scope:
             self.o1 = self.network(self.x1)
@@ -14,22 +16,22 @@ class Siamese:
         self.loss = self.loss_with_spring()
 
     def network(self, x):
-        weights = []
-        fc1 = self.fc_layer(x, 1024, 'fc1')
-        ac1 = tf.nn.relu(fc1)
-        fc2 = self.fc_layer(ac1, 1024, 'fc2')
-        ac2 = tf.nn.relu(fc2)
-        fc3 = self.fc_layer(ac2, 2, 'fc3')
-        return fc3
+        net = slim.conv2d(x, 32, [3, 3], scope='conv1')
+        net = slim.max_pool2d(net, [2, 2], scope='pool1')
 
-    def fc_layer(self, bottom, n_weight, name):
-        assert len(bottom.get_shape()) == 2
-        n_prev_weight = bottom.get_shape()[1]
-        initer = tf.truncated_normal_initializer(stddev=0.01)
-        W = tf.get_variable(name+'W', dtype=tf.float32, shape=[n_prev_weight, n_weight], initializer=initer)
-        b = tf.get_variable(name+'b', dtype=tf.float32, initializer=tf.constant(0.01, shape=[n_weight], dtype=tf.float32))
-        fc = tf.nn.bias_add(tf.matmul(bottom, W), b)
-        return fc
+        net = slim.conv2d(net, 64, [3, 3], scope='conv2')
+        net = slim.max_pool2d(net, [2, 2], scope='pool2')
+
+        net = slim.flatten(net, scope='flat')
+
+        net = slim.fully_connected(net, 1024, scope='fc1')
+        net = slim.dropout(net, keep_prob=0.5, scope='drop1')
+
+        net = slim.fully_connected(net, 1024, scope='fc2')
+        net = slim.dropout(net, keep_prob=0.5, scope='drop2')
+
+        net = slim.fully_connected(net, 2, scope='fc3')
+        return net
 
     def loss_with_spring(self):
         margin = 5.0

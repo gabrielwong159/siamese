@@ -11,9 +11,9 @@ model_path = 'model/mnist/model.ckpt'
 
 def train():
     learning_rate = 5e-4
-    num_iterations = 500_000
+    num_iterations = 300_000
 
-    siamese = model.Siamese()
+    siamese = model.Siamese(height=28, width=28)
     # optimizer = tf.train.GradientDescentOptimizer(learning_rate)  # 1e-2
     optimizer = tf.train.AdamOptimizer(learning_rate)  # 5e-4
     train_step = optimizer.minimize(siamese.loss)
@@ -26,6 +26,10 @@ def train():
         for i in range(num_iterations):
             x1, y1 = mnist.train.next_batch(128)
             x2, y2 = mnist.train.next_batch(128)
+
+            x1 = np.reshape(x1, [-1, 28, 28, 1])
+            x2 = np.reshape(x2, [-1, 28, 28, 1])
+
             y = (y1 == y2).astype(np.float32)
             feed_dict = {
                 siamese.x1: x1,
@@ -48,9 +52,10 @@ def train():
 def test():
     test_data = 'data/mnist'
     files = [join(test_data, f'{i}.png') for i in range(10)]
-    truth = [cv2.imread(f, 0).flatten() / 255 for f in files]
+    truth = [cv2.imread(f, 0) / 255 for f in files]
+    truth = np.array(truth).reshape([-1, 28, 28, 1])
 
-    siamese = model.Siamese()
+    siamese = model.Siamese(height=28, width=28)
     saver = tf.train.Saver()
 
     with tf.Session() as sess:
@@ -60,20 +65,24 @@ def test():
             siamese.x1: truth,
         })
 
-        # get test image results
         x, y = mnist.test.next_batch(10000)
-        outputs = sess.run(siamese.o1, feed_dict={
-            siamese.x1: x,
-        })
+        x = np.reshape(x, [-1, 28, 28, 1])
 
-        # get euclidean distance between both
-        def pred(x):
-            # L1 = np.sum(np.abs(labels - x), axis=-1)
-            L2 = np.sum(np.square(labels - x), axis=-1)
-            return np.argmin(L2)
+        n = 0
+        for i in range(10):
+            batch = x[i*1000:(i+1)*1000]
+            outputs = sess.run(siamese.o1, feed_dict={
+                siamese.x1: batch,
+            })
 
-        preds = np.apply_along_axis(pred, axis=-1, arr=outputs)
-        print(np.sum(preds == y))
+            def pred(x):
+                # L1 = np.sum(np.abs(labels - x), axis=-1)
+                L2 = np.sum(np.square(labels - x), axis=-1)
+                return np.argmin(L2)
+
+            preds = np.apply_along_axis(pred, axis=-1, arr=outputs)
+            n += np.sum(preds == y[i*1000:(i+1)*1000])
+        print(n)
 
 
 if __name__ == '__main__':

@@ -1,4 +1,4 @@
 numpy
-tensorflow-gpu==1.4.0
+tensorflow-gpu
 opencv-python
 tqdm
