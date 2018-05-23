@@ -11,23 +11,23 @@ model_path = 'model/omniglot/model.ckpt'
 width = 105
 height = 105
 
-"""
-{
-    "Alphabet_of_the_Magi": {
-        "character01": ['a.png', 'b.png', ...],
-        "character02": [...],
-        ...
-    },
-    "Anglo-Saxon_Futhorc": {
-        "character01": [...],
-        ...    
-    },
-    ...
-}
-"""
-
 
 def get_files(dataset='train', array=False):
+    """
+    {
+        "Alphabet_of_the_Magi": {
+            "character01": ['a.png', 'b.png', ...],
+            "character02": [...],
+            ...
+        },
+        "Anglo-Saxon_Futhorc": {
+            "character01": [...],
+            ...
+        },
+        ...
+    }
+    """
+
     if dataset == 'train':
         src = Path('data', 'images_background')
     elif dataset == 'test':
@@ -59,9 +59,9 @@ def get_files(dataset='train', array=False):
 
 
 def train():
-    learning_rate = 5e-4
+    learning_rate = 5e-5
     num_iterations = 200_000
-    batch_size = 16
+    batch_size = 32
 
     l = get_files('train', array=True)
     pairs = []
@@ -134,35 +134,36 @@ def test():
     for a in d:  # alphabet
         for c in d[a]:  # character
             image = cv2.bitwise_not(cv2.imread(d[a][c][0], 0))
-            image = image.flatten() / 255
+            image = image.reshape([height, width, 1]) / 255
             truth.append((a, c, image))
     a, c, i = zip(*truth)
 
-    siamese = model.Siamese(size)
+    siamese = model.Siamese(height, width)
     saver = tf.train.Saver()
 
     with tf.Session() as sess:
         saver.restore(sess, model_path)
 
-        labels = sess.run(siamese.o1, feed_dict={
-            siamese.x1: i,
-        })
+        ground_values = np.array([sess.run(siamese.o1, {siamese.x1: [_]}) for _ in i])
 
-        test = cv2.imread(d['Manipuri']['character03'][3], 0)
-        test = cv2.bitwise_not(test)
-        test = test.flatten() / 255
-        out = sess.run(siamese.o1, feed_dict={
-            siamese.x1: [test],
-        })[0]
+        count = 0
+        for i in range(10000):
+            _a = choice(list(d.keys()))
+            _c = choice(list(d[_a].keys()))
+            _i = choice(d[_a][_c])
 
-        L2 = np.sum(np.square(labels - out), axis=-1)
-        idx = np.argmin(L2)
-        print(a[idx], c[idx])
+            test = cv2.imread(_i, 0)
+            test = cv2.bitwise_not(test)
+            test = test.reshape([height, width, 1]) / 255
+            out = sess.run(siamese.o1, feed_dict={
+                siamese.x1: [test],
+            })[0]
 
-        cv2.imshow('in', test.reshape((105, 105)))
-        cv2.imshow('out', i[idx].reshape((105, 105)))
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+            L2 = np.sum(np.square(ground_values - out), axis=-1)
+            idx = np.argmin(L2)
+            if a[idx] == _a and c[idx] == _c:
+                count += 1
+        print(count)
 
 
 if __name__ == '__main__':

@@ -67,7 +67,7 @@ def test():
 
         x, y = mnist.test.next_batch(10000)
         x = np.reshape(x, [-1, 28, 28, 1])
-
+        # divide a test batch of 10000 into 10*1000
         n = 0
         for i in range(10):
             batch = x[i*1000:(i+1)*1000]

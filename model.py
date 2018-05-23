@@ -22,6 +22,12 @@ class Siamese:
         net = slim.conv2d(net, 64, [3, 3], scope='conv2')
         net = slim.max_pool2d(net, [2, 2], scope='pool2')
 
+        net = slim.conv2d(net, 128, [3, 3], scope='conv3')
+        net = slim.max_pool2d(net, [2, 2], scope='pool3')
+
+        net = slim.conv2d(net, 256, [3, 3], scope='conv4')
+        net = slim.max_pool2d(net, [2, 2], scope='pool4')
+
         net = slim.flatten(net, scope='flat')
 
         net = slim.fully_connected(net, 1024, scope='fc1')
