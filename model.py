@@ -3,40 +3,53 @@ import tensorflow.contrib.slim as slim
 
 
 class Siamese:
-    def __init__(self, height, width):
+    def __init__(self, height, width, model):
+        if model.lower() == 'mnist':
+            network = self.mnist
+        elif model.lower() == 'omniglot':
+            network = self.omniglot
+        else:
+            raise ValueError('Unknown model name passed to Siamese object')
+
         self.x1 = tf.placeholder(tf.float32, [None, height, width, 1])
         self.x2 = tf.placeholder(tf.float32, [None, height, width, 1])
 
         with tf.variable_scope('siamese') as scope:
-            self.o1 = self.network(self.x1)
+            self.o1 = network(self.x1)
             scope.reuse_variables()
-            self.o2 = self.network(self.x2)
+            self.o2 = network(self.x2)
 
         self.y_ = tf.placeholder(tf.float32, [None])
         self.loss = self.loss_with_spring()
 
-    def network(self, x):
+    def mnist(self, x):
         net = slim.conv2d(x, 32, [3, 3], scope='conv1')
         net = slim.max_pool2d(net, [2, 2], scope='pool1')
 
         net = slim.conv2d(net, 64, [3, 3], scope='conv2')
         net = slim.max_pool2d(net, [2, 2], scope='pool2')
 
-        net = slim.conv2d(net, 128, [3, 3], scope='conv3')
-        net = slim.max_pool2d(net, [2, 2], scope='pool3')
-
-        net = slim.conv2d(net, 256, [3, 3], scope='conv4')
-        net = slim.max_pool2d(net, [2, 2], scope='pool4')
-
         net = slim.flatten(net, scope='flat')
 
         net = slim.fully_connected(net, 1024, scope='fc1')
         net = slim.dropout(net, keep_prob=0.5, scope='drop1')
 
-        net = slim.fully_connected(net, 1024, scope='fc2')
-        net = slim.dropout(net, keep_prob=0.5, scope='drop2')
+        net = slim.fully_connected(net, 1024, scope='out')
 
-        net = slim.fully_connected(net, 2, scope='fc3')
+    def omniglot(self, x):
+        net = slim.conv2d(x, 64, [10, 10], padding='VALID', scope='conv1')
+        net = slim.max_pool2d(net, [2, 2], scope='pool1')
+
+        net = slim.conv2d(net, 128, [7, 7], padding='VALID', scope='conv2')
+        net = slim.max_pool2d(net, [2, 2], scope='pool2')
+
+        net = slim.conv2d(net, 128, [4, 4], padding='VALID', scope='conv3')
+        net = slim.max_pool2d(net, [2, 2], scope='pool3')
+
+        net = slim.conv2d(net, 256, [4, 4], padding='VALID', scope='conv4')
+
+        net = slim.flatten(net, scope='flat')
+        net = slim.fully_connected(net, 4096, scope='fc1')
         return net
 
     def loss_with_spring(self):

@@ -5,23 +5,21 @@ from tensorflow.examples.tutorials.mnist import input_data
 from os.path import join
 import model
 
-mnist = input_data.read_data_sets('MNIST_data', one_hot=False)
-model_path = 'model/mnist/model.ckpt'
+mnist = input_data.read_data_sets('data/mnist/MNIST_data/', one_hot=False)
+model_path = 'model/mnist/model'
 
 
 def train():
-    learning_rate = 5e-4
-    num_iterations = 300_000
+    learning_rate = 1e-4
+    num_iterations = 20_000
 
-    siamese = model.Siamese(height=28, width=28)
-    # optimizer = tf.train.GradientDescentOptimizer(learning_rate)  # 1e-2
-    optimizer = tf.train.AdamOptimizer(learning_rate)  # 5e-4
+    siamese = model.Siamese(height=28, width=28, model='mnist')
+    optimizer = tf.train.AdamOptimizer(learning_rate)
     train_step = optimizer.minimize(siamese.loss)
     saver = tf.train.Saver()
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        # saver.restore(sess, model_path)
 
         for i in range(num_iterations):
             x1, y1 = mnist.train.next_batch(128)
@@ -50,12 +48,12 @@ def train():
 
 
 def test():
-    test_data = 'data/mnist'
+    test_data = 'data/mnist/labels'
     files = [join(test_data, f'{i}.png') for i in range(10)]
     truth = [cv2.imread(f, 0) / 255 for f in files]
     truth = np.array(truth).reshape([-1, 28, 28, 1])
 
-    siamese = model.Siamese(height=28, width=28)
+    siamese = model.Siamese(height=28, width=28, model='mnist')
     saver = tf.train.Saver()
 
     with tf.Session() as sess:
@@ -65,7 +63,7 @@ def test():
             siamese.x1: truth,
         })
 
-        x, y = mnist.test.next_batch(10000)
+        x, y = mnist.test.images, mnist.test.labels
         x = np.reshape(x, [-1, 28, 28, 1])
         # divide a test batch of 10000 into 10*1000
         n = 0
@@ -76,9 +74,9 @@ def test():
             })
 
             def pred(x):
-                # L1 = np.sum(np.abs(labels - x), axis=-1)
+                L1 = np.sum(np.abs(labels - x), axis=-1)
                 L2 = np.sum(np.square(labels - x), axis=-1)
-                return np.argmin(L2)
+                return np.argmin(L1)
 
             preds = np.apply_along_axis(pred, axis=-1, arr=outputs)
             n += np.sum(preds == y[i*1000:(i+1)*1000])
@@ -86,5 +84,7 @@ def test():
 
 
 if __name__ == '__main__':
-    # train()
-    test()
+    with tf.Graph().as_default():
+        train()
+    with tf.Graph().as_default():
+        test()

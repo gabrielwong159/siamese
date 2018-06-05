@@ -1,9 +1,9 @@
 # Environment folders
 .idea
+.ipynb_checkpoints
 venv
 __pycache__
 
 # Data
 data
-MNIST_data
 model
