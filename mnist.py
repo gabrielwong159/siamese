@@ -3,6 +3,7 @@ import cv2
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 from os.path import join
+from tqdm import trange
 import model
 
 mnist = input_data.read_data_sets('data/mnist/MNIST_data/', one_hot=False)
@@ -33,6 +34,7 @@ def train():
                 siamese.x1: x1,
                 siamese.x2: x2,
                 siamese.y_: y,
+                siamese.keep_prob: 0.5,
             }
 
             _, loss_v = sess.run([train_step, siamese.loss], feed_dict=feed_dict)
@@ -58,13 +60,23 @@ def test():
 
     with tf.Session() as sess:
         saver.restore(sess, model_path)
-        # get ground truth results
-        labels = sess.run(siamese.o1, feed_dict={
-            siamese.x1: truth,
-        })
 
         x, y = mnist.test.images, mnist.test.labels
         x = np.reshape(x, [-1, 28, 28, 1])
+        n = 0
+        for i in trange(len(x)):
+            image, label = x[i], y[i]
+            feed_dict = {
+                siamese.x1: np.array([image for _ in truth]),
+                siamese.x2: truth,
+                siamese.keep_prob: 1.0,
+            }
+            sigmoid = sess.run([siamese.out], feed_dict=feed_dict)
+            pred = np.argmax(sigmoid)
+            n += (pred == label)
+        print(n)
+
+        """
         # divide a test batch of 10000 into 10*1000
         n = 0
         for i in range(10):
@@ -81,10 +93,11 @@ def test():
             preds = np.apply_along_axis(pred, axis=-1, arr=outputs)
             n += np.sum(preds == y[i*1000:(i+1)*1000])
         print(n)
+        """
 
 
 if __name__ == '__main__':
-    with tf.Graph().as_default():
-        train()
+    #with tf.Graph().as_default():
+    #   train()
     with tf.Graph().as_default():
         test()

@@ -61,7 +61,7 @@ def get_files(dataset='train', array=False):
 
 def train(resume=True):
     learning_rate = 5e-4
-    num_iterations = 20_000
+    num_iterations = 40_000
     batch_size = 32
 
     # grab all possible combinations of similar pairs
@@ -73,7 +73,7 @@ def train(resume=True):
     pairs = [pair + (1.0,) for pair in pairs]  # tag as similar
 
     # reduce the number of training points
-    n_samples = 50_000
+    n_samples = 20_000
     pairs = choices(pairs, k=n_samples)
 
     n = len(pairs)  # use an equal number of same and diff pairs
@@ -94,12 +94,11 @@ def train(resume=True):
         im1, im2 = map(str_to_img, [x1, x2])
         return im1, im2, y_
 
-    n_epochs = 400
     x1, x2, y_ = map(tf.constant, zip(*pairs))
     dataset = tf.data.Dataset.from_tensor_slices((x1, x2, y_)) \
                              .map(_parse) \
-                             .shuffle(buffer_size=10_000) \
-                             .repeat(n_epochs) \
+                             .shuffle(buffer_size=n_samples*2) \
+                             .repeat(-1) \
                              .batch(batch_size) \
                              .prefetch(batch_size)
     iterator = dataset.make_one_shot_iterator()
@@ -116,30 +115,24 @@ def train(resume=True):
             saver.restore(sess, model_path)
             print('Restored model from:', model_path)
 
-        i = 0
-        try:
-            while True:
-                x1, x2, y_ = sess.run(next_element)
-                feed_dict = {
-                    siamese.x1: x1,
-                    siamese.x2: x2,
-                    siamese.y_: y_,
-                }
+        for i in trange(num_iterations):
+            x1, x2, y_ = sess.run(next_element)
+            feed_dict = {
+                siamese.x1: x1,
+                siamese.x2: x2,
+                siamese.y_: y_,
+            }
 
-                _, loss_v = sess.run([train_step, siamese.loss], feed_dict=feed_dict)
-                assert not np.isnan(loss_v), 'Model diverged with loss = NaN'
+            _, loss_v = sess.run([train_step, siamese.loss], feed_dict=feed_dict)
+            assert not np.isnan(loss_v), 'Model diverged with loss = NaN'
 
-                if i % 100 == 0:
-                    print(f'step {i}: loss {loss_v}')
+            if i % 100 == 0:
+                print(f'step {i}: loss {loss_v}')
 
-                if i+1 % 1000 == 0:
-                    print('Model saved:', saver.save(sess, model_path))
+            if (i+1) % 1000 == 0:
+                print('Model saved:', saver.save(sess, model_path))
 
-                i += 1
-        except tf.errors.OutOfRangeError:
-            pass
-        finally:
-            print('Finished:', saver.save(sess, model_path))
+        print('Finished:', saver.save(sess, model_path))
 
 
 def test():
@@ -180,9 +173,11 @@ def test():
                 count += 1
                 pbar.set_postfix({'count': count})
 
+        print(count / 10_000)
+
 
 if __name__ == '__main__':
     with tf.Graph().as_default():
-        train(False)
+        train(resume=False)
     with tf.Graph().as_default():
         test()

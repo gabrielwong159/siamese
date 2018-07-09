@@ -13,14 +13,24 @@ class Siamese:
 
         self.x1 = tf.placeholder(tf.float32, [None, height, width, 1])
         self.x2 = tf.placeholder(tf.float32, [None, height, width, 1])
+        self.y_ = tf.placeholder(tf.float32, [None])
+        self.keep_prob = tf.placeholder(tf.float32)
 
         with tf.variable_scope('siamese') as scope:
             self.o1 = network(self.x1)
             scope.reuse_variables()
             self.o2 = network(self.x2)
+        dist = tf.abs(self.o1 - self.o2)
 
-        self.y_ = tf.placeholder(tf.float32, [None])
-        self.loss = self.loss_with_spring()
+        logits = slim.fully_connected(dist, 1, activation_fn=None)
+        labels = tf.expand_dims(self.y_, axis=-1)
+        cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits)
+        self.loss = tf.reduce_mean(cross_entropy) + tf.add_n(slim.losses.get_regularization_losses())
+
+        self.out = tf.nn.sigmoid(logits)
+
+        # regularization_loss = tf.add_n(slim.losses.get_regularization_losses())
+        # self.loss = self.loss_with_spring() + regularization_loss
 
     def mnist(self, x):
         net = slim.conv2d(x, 32, [3, 3], scope='conv1')
@@ -34,22 +44,25 @@ class Siamese:
         net = slim.fully_connected(net, 1024, scope='fc1')
         net = slim.dropout(net, keep_prob=0.5, scope='drop1')
 
-        net = slim.fully_connected(net, 1024, scope='out')
+        net = slim.fully_connected(net, 1024, activation_fn=tf.nn.sigmoid, scope='fc2')
+        return net
 
     def omniglot(self, x):
-        net = slim.conv2d(x, 64, [10, 10], padding='VALID', scope='conv1')
-        net = slim.max_pool2d(net, [2, 2], scope='pool1')
+        with slim.arg_scope([slim.conv2d],
+                            weights_regularizer=slim.l2_regularizer(0.1)):
+            net = slim.conv2d(x, 64, [10, 10], padding='VALID', scope='conv1')
+            net = slim.max_pool2d(net, [2, 2], scope='pool1')
 
-        net = slim.conv2d(net, 128, [7, 7], padding='VALID', scope='conv2')
-        net = slim.max_pool2d(net, [2, 2], scope='pool2')
+            net = slim.conv2d(net, 128, [7, 7], padding='VALID', scope='conv2')
+            net = slim.max_pool2d(net, [2, 2], scope='pool2')
 
-        net = slim.conv2d(net, 128, [4, 4], padding='VALID', scope='conv3')
-        net = slim.max_pool2d(net, [2, 2], scope='pool3')
+            net = slim.conv2d(net, 128, [4, 4], padding='VALID', scope='conv3')
+            net = slim.max_pool2d(net, [2, 2], scope='pool3')
 
-        net = slim.conv2d(net, 256, [4, 4], padding='VALID', scope='conv4')
+            net = slim.conv2d(net, 256, [4, 4], padding='VALID', scope='conv4')
 
         net = slim.flatten(net, scope='flat')
-        net = slim.fully_connected(net, 4096, scope='fc1')
+        net = slim.fully_connected(net, 4096, activation_fn=tf.nn.sigmoid, scope='fc1')
         return net
 
     def loss_with_spring(self):
