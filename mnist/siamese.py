@@ -30,11 +30,12 @@ class Siamese:
         return logits
 
     def convnet(self, x):
-        net = slim.conv2d(x, 32, [3, 3], scope='conv1')
-        net = slim.max_pool2d(net, [2, 2], scope='pool1')
+        with slim.arg_scope([slim.conv2d], trainable=False):
+            net = slim.conv2d(x, 32, [5, 5], scope='conv1')
+            net = slim.max_pool2d(net, [2, 2], scope='pool1')
 
-        net = slim.conv2d(net, 64, [3, 3], scope='conv2')
-        net = slim.max_pool2d(net, [2, 2], scope='pool2')
+            net = slim.conv2d(net, 64, [5, 5], scope='conv2')
+            net = slim.max_pool2d(net, [2, 2], scope='pool2')
 
         net = slim.flatten(net, scope='flat')
 

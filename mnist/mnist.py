@@ -1,26 +1,33 @@
 import numpy as np
 import cv2
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
 from tensorflow.examples.tutorials.mnist import input_data
 from os.path import join
 from tqdm import trange
 from siamese import Siamese
 
 mnist = input_data.read_data_sets('data/MNIST_data/', one_hot=False)
-model_path = 'model/mnist/model'
+model_path = 'model/siamese/model'
 
 
 def train():
     learning_rate = 1e-4
-    num_iterations = 20_000
+    num_iterations = 10_000
 
     siamese = Siamese()
-    optimizer = tf.train.AdamOptimizer(learning_rate)
-    train_step = optimizer.minimize(siamese.loss)
-    saver = tf.train.Saver()
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
+        variables_to_restore = slim.get_variables_to_restore(include=['siamese/conv1', 'siamese/conv2'])
+        restorer = tf.train.Saver(variables_to_restore)
+        restorer.restore(sess, 'model/classifier/model')
+
+        optimizer = tf.train.AdamOptimizer(learning_rate)
+        train_step = optimizer.minimize(siamese.loss)
+        sess.run(tf.variables_initializer(optimizer.variables()))
+
+        saver = tf.train.Saver()
 
         for i in range(num_iterations):
             x1, y1 = mnist.train.next_batch(128)
@@ -50,12 +57,12 @@ def train():
 
 
 def test():
-    test_data = 'data/mnist/labels'
+    test_data = 'data/labels'
     files = [join(test_data, f'{i}.png') for i in range(10)]
     truth = [cv2.imread(f, 0) / 255 for f in files]
     truth = np.array(truth).reshape([-1, 28, 28, 1])
 
-    siamese = model.Siamese(height=28, width=28, model='mnist')
+    siamese = Siamese()
     saver = tf.train.Saver()
 
     with tf.Session() as sess:
@@ -64,40 +71,25 @@ def test():
         x, y = mnist.test.images, mnist.test.labels
         x = np.reshape(x, [-1, 28, 28, 1])
         n = 0
-        for i in trange(len(x)):
-            image, label = x[i], y[i]
-            feed_dict = {
-                siamese.x1: np.array([image for _ in truth]),
-                siamese.x2: truth,
-                siamese.keep_prob: 1.0,
-            }
-            sigmoid = sess.run([siamese.out], feed_dict=feed_dict)
-            pred = np.argmax(sigmoid)
-            n += (pred == label)
-        print(n)
+        with trange(len(x)) as pbar:
+            for i in pbar:
+                image, label = x[i], y[i]
+                feed_dict = {
+                    siamese.x1: np.array([image for _ in truth]),
+                    siamese.x2: truth,
+                    siamese.keep_prob: 1.0,
+                }
+                sigmoid = sess.run([siamese.out], feed_dict=feed_dict)
+                pred = np.argmax(sigmoid)
+                n += (pred == label)
 
-        """
-        # divide a test batch of 10000 into 10*1000
-        n = 0
-        for i in range(10):
-            batch = x[i*1000:(i+1)*1000]
-            outputs = sess.run(siamese.o1, feed_dict={
-                siamese.x1: batch,
-            })
-
-            def pred(x):
-                L1 = np.sum(np.abs(labels - x), axis=-1)
-                L2 = np.sum(np.square(labels - x), axis=-1)
-                return np.argmin(L1)
-
-            preds = np.apply_along_axis(pred, axis=-1, arr=outputs)
-            n += np.sum(preds == y[i*1000:(i+1)*1000])
-        print(n)
-        """
+                if (i+1) % 100 == 0:
+                    pbar.set_postfix(acc=n/i)
+        print(n / i)
 
 
 if __name__ == '__main__':
-    #with tf.Graph().as_default():
-    #   train()
+    # with tf.Graph().as_default():
+    #    train()
     with tf.Graph().as_default():
         test()
