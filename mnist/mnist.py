@@ -4,9 +4,9 @@ import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 from os.path import join
 from tqdm import trange
-import model
+from siamese import Siamese
 
-mnist = input_data.read_data_sets('data/mnist/MNIST_data/', one_hot=False)
+mnist = input_data.read_data_sets('data/MNIST_data/', one_hot=False)
 model_path = 'model/mnist/model'
 
 
@@ -14,7 +14,7 @@ def train():
     learning_rate = 1e-4
     num_iterations = 20_000
 
-    siamese = model.Siamese(height=28, width=28, model='mnist')
+    siamese = Siamese()
     optimizer = tf.train.AdamOptimizer(learning_rate)
     train_step = optimizer.minimize(siamese.loss)
     saver = tf.train.Saver()

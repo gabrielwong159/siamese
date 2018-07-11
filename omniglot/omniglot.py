@@ -6,7 +6,7 @@ from pathlib import Path
 from itertools import combinations
 from random import choice, choices, shuffle
 from tqdm import tqdm, trange
-import model
+from siamese import Siamese
 
 model_path = 'model/omniglot/model'
 width = 105
@@ -30,9 +30,9 @@ def get_files(dataset='train', array=False):
     """
 
     if dataset == 'train':
-        src = Path('data', 'omniglot', 'images_background')
+        src = Path('data', 'images_background')
     elif dataset == 'test':
-        src = Path('data', 'omniglot', 'images_evaluation')
+        src = Path('data', 'images_evaluation')
     else:
         raise ValueError('Invalid dataset parameter provided')
 
@@ -60,7 +60,7 @@ def get_files(dataset='train', array=False):
 
 
 def train(resume=True):
-    learning_rate = 5e-4
+    learning_rate = 1e-5
     num_iterations = 40_000
     batch_size = 32
 
@@ -81,6 +81,9 @@ def train(resume=True):
         a1, a2 = choices(l, k=2)
         c1, c2 = choice(a1), choice(a2)
         s1, s2 = choice(c1), choice(c2)
+        while s1 == s2:
+            s2 = choice(c2)
+        assert s1 != s2, s1
         pairs.append((s1, s2, 0.0))
 
     def _parse(x1, x2, y_):
@@ -104,7 +107,7 @@ def train(resume=True):
     iterator = dataset.make_one_shot_iterator()
     next_element = iterator.get_next()
 
-    siamese = model.Siamese(height, width, model='omniglot')
+    siamese = Siamese()
     optimizer = tf.train.AdamOptimizer(learning_rate)
     train_step = optimizer.minimize(siamese.loss)
     saver = tf.train.Saver()
@@ -127,57 +130,14 @@ def train(resume=True):
             assert not np.isnan(loss_v), 'Model diverged with loss = NaN'
 
             if i % 100 == 0:
-                print(f'step {i}: loss {loss_v}')
+                tqdm.write(f'step {i}: loss {loss_v}')
 
             if (i+1) % 1000 == 0:
-                print('Model saved:', saver.save(sess, model_path))
+                tqdm.write('Model saved: {}'.format(saver.save(sess, model_path)))
 
         print('Finished:', saver.save(sess, model_path))
-
-
-def test():
-    d = get_files('test')
-    truth = []
-    for a in d:  # alphabet
-        for c in d[a]:  # character
-            image = cv2.bitwise_not(cv2.imread(d[a][c][0], 0))
-            image = image.reshape([height, width, 1]) / 255
-            truth.append((a, c, image))
-    a, c, i = zip(*truth)
-
-    siamese = model.Siamese(height, width, model='omniglot')
-    saver = tf.train.Saver()
-
-    with tf.Session() as sess:
-        saver.restore(sess, model_path)
-
-        ground_values = np.array([sess.run(siamese.o1, {siamese.x1: [_]}) for _ in tqdm(i, desc='Computing ground truth labels')])
-
-        count = 0
-        pbar = trange(10_000, postfix={'count': 0}, desc='Running test images')
-        for i in pbar:
-            _a = choice(list(d.keys()))
-            _c = choice(list(d[_a].keys()))
-            _i = choice(d[_a][_c])
-
-            test = cv2.imread(_i, 0)
-            test = cv2.bitwise_not(test)
-            test = test.reshape([height, width, 1]) / 255
-            out = sess.run(siamese.o1, feed_dict={
-                siamese.x1: [test],
-            })[0]
-
-            L2 = np.sum(np.square(ground_values - out), axis=-1)
-            idx = np.argmin(L2)
-            if a[idx] == _a and c[idx] == _c:
-                count += 1
-                pbar.set_postfix({'count': count})
-
-        print(count / 10_000)
 
 
 if __name__ == '__main__':
     with tf.Graph().as_default():
         train(resume=False)
-    with tf.Graph().as_default():
-        test()
