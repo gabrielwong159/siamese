@@ -16,9 +16,9 @@ h, w, c = 105, 105, 1
 
 
 def train():
-    n_samples = 10_000
+    n_samples = 40_000
     learning_rate = 1e-5
-    num_iterations = 10_000
+    num_iterations = 50_000
     batch_size = 32
 
     filenames = np.load('data/images_background_filenames.npy')
@@ -60,9 +60,6 @@ def train():
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        variables_to_restore = slim.get_variables_to_restore(include=['siamese/conv'])
-        restorer = tf.train.Saver(variables_to_restore)
-        restorer.restore(sess, 'model/classifier/model')
 
         optimizer = tf.train.AdamOptimizer(learning_rate)
         train_step = optimizer.minimize(siamese.loss)
@@ -84,7 +81,7 @@ def train():
                 min_loss = (i, loss_v)
 
             if i % 100 == 0:
-                tqdm.write(f'\nstep {i}: loss {loss_v}\tMinimum loss: {min_loss}')
+                tqdm.write(f'\nstep {i}: loss {loss_v} Minimum loss: {min_loss}')
 
             if (i+1) % 1000 == 0:
                 tqdm.write('\nModel saved: {}'.format(saver.save(sess, model_path)))
@@ -128,30 +125,29 @@ def plot_confusion_matrix(cm, classes,
 
 
 def test():
-    images = np.load('data/images_evaluation.npy')[:40] / 255
+    images = np.load('data/images_evaluation.npy')[:20] / 255
     images = np.expand_dims(images, axis=-1)
     ground = images[:, 0]
-    print(images.shape, ground.shape)
 
     model = Siamese()
     saver = tf.train.Saver()
     with tf.Session() as sess:
         saver.restore(sess, model_path)
 
-        preds = [[] for _ in images]
-        with trange(len(images)) as pbar:
-            for i in pbar:
-                for j, image in enumerate(images[i]):
-                    feed_dict = {
-                        model.x1: [image for _ in ground],
-                        model.x2: ground,
-                        model.keep_prob: 1.0,
-                    }
-                    sigmoid = sess.run(model.out, feed_dict)
-                    pred = np.argmax(sigmoid)
-                    preds[i].append(pred)
+        ground_scores = sess.run(model.o1, feed_dict={
+            model.x1: ground,
+        })
 
-                    pbar.set_postfix(count='{:02d}'.format(j+1))
+        preds = [[] for _ in images]
+        for i in trange(len(images)):
+            batch_scores = sess.run(model.o1, feed_dict={
+                model.x1: images[i]
+            })
+
+            for score in batch_scores:
+                dist = np.sum(np.abs(ground_scores - score), axis=-1)
+                pred = np.argmin(dist)
+                preds[i].append(pred)
 
     y_true = np.array([[i for _ in images[i]] for i in range(len(images))]).flatten()
     y_preds = np.array(preds).flatten()
@@ -163,7 +159,7 @@ def test():
 
 if __name__ == '__main__':
     with tf.Graph().as_default():
-        train()
+        pass  # train()
     with tf.Graph().as_default():
         test()
 
