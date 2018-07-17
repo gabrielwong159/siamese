@@ -1,106 +1,55 @@
 import numpy as np
-import cv2
 import tensorflow as tf
-from os import listdir
-from pathlib import Path
-from itertools import combinations
-from random import choice, choices, shuffle
+import tensorflow.contrib.slim as slim
+import itertools
+import random
+from random import choice, choices, sample, shuffle
 from tqdm import tqdm, trange
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
 from siamese import Siamese
 
+random.seed(0)
+
 model_path = 'model/omniglot/model'
-width = 105
-height = 105
+h, w, c = 105, 105, 1
 
 
-def get_files(dataset='train', array=False):
-    """
-    {
-        "Alphabet_of_the_Magi": {
-            "character01": ['a.png', 'b.png', ...],
-            "character02": [...],
-            ...
-        },
-        "Anglo-Saxon_Futhorc": {
-            "character01": [...],
-            ...
-        },
-        ...
-    }
-    """
-
-    if dataset == 'train':
-        src = Path('data', 'images_background')
-    elif dataset == 'test':
-        src = Path('data', 'images_evaluation')
-    else:
-        raise ValueError('Invalid dataset parameter provided')
-
-    out = {}
-    for alphabet in listdir(src):
-        chars = {}
-        for character in listdir(src / alphabet):
-            folder = src / alphabet / character
-            chars[character] = [str(folder / f) for f in listdir(folder)]
-        out[alphabet] = chars
-
-    if not array:
-        return out
-
-    # [n_alphabets, n_characters, n_samples]
-    l = []
-    for alphabet, characters in out.items():
-        _l = []
-        for char, filenames in characters.items():
-            _l.append(filenames)
-
-        l.append(_l)
-
-    return l
-
-
-def train(resume=True):
+def train():
+    n_samples = 10_000
     learning_rate = 1e-5
-    num_iterations = 40_000
+    num_iterations = 10_000
     batch_size = 32
 
-    # grab all possible combinations of similar pairs
-    l = get_files('train', array=True)
+    filenames = np.load('data/images_background_filenames.npy')
+    print(filenames.shape)
+
     pairs = []
-    for a in l:  # l: list of alphabets
-        for c in a:  # a: list of characters
-            pairs.extend(combinations(c, 2))  # grab pairs from c: list of samples
-    pairs = [pair + (1.0,) for pair in pairs]  # tag as similar
+    for class_filenames in filenames:
+        pairs.extend(itertools.combinations(class_filenames, 2))
 
-    # reduce the number of training points
-    n_samples = 20_000
-    pairs = choices(pairs, k=n_samples)
+    pairs = sample(pairs, k=n_samples)
+    pairs = [pair + (1.0,) for pair in pairs]
+    for i in range(n_samples):
+        class_1, class_2 = choices(filenames, k=2)
+        im_1, im_2 = choice(class_1), choice(class_2)
+        pairs.append((im_1, im_2, 0.0))
 
-    n = len(pairs)  # use an equal number of same and diff pairs
-    for _ in range(n):
-        a1, a2 = choices(l, k=2)
-        c1, c2 = choice(a1), choice(a2)
-        s1, s2 = choice(c1), choice(c2)
-        while s1 == s2:
-            s2 = choice(c2)
-        assert s1 != s2, s1
-        pairs.append((s1, s2, 0.0))
+    shuffle(pairs)
 
     def _parse(x1, x2, y_):
         def str_to_img(s):
             image_string = tf.read_file(s)
             image_decoded = tf.image.decode_png(image_string)
-            image_inverted = tf.bitwise.invert(image_decoded)
-            image_resized = tf.reshape(image_inverted, (height, width, 1))
+            image_resized = tf.reshape(image_decoded, (h, w, 1))
             return tf.divide(image_resized, 255)
 
         im1, im2 = map(str_to_img, [x1, x2])
         return im1, im2, y_
 
-    x1, x2, y_ = map(tf.constant, zip(*pairs))
+    x1, x2, y_ = map(np.array, zip(*pairs))
     dataset = tf.data.Dataset.from_tensor_slices((x1, x2, y_)) \
-                             .map(_parse) \
-                             .shuffle(buffer_size=n_samples*2) \
+                             .map(_parse, num_parallel_calls=8) \
                              .repeat(-1) \
                              .batch(batch_size) \
                              .prefetch(batch_size)
@@ -108,16 +57,20 @@ def train(resume=True):
     next_element = iterator.get_next()
 
     siamese = Siamese()
-    optimizer = tf.train.AdamOptimizer(learning_rate)
-    train_step = optimizer.minimize(siamese.loss)
-    saver = tf.train.Saver()
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        if resume:
-            saver.restore(sess, model_path)
-            print('Restored model from:', model_path)
+        variables_to_restore = slim.get_variables_to_restore(include=['siamese/conv'])
+        restorer = tf.train.Saver(variables_to_restore)
+        restorer.restore(sess, 'model/classifier/model')
 
+        optimizer = tf.train.AdamOptimizer(learning_rate)
+        train_step = optimizer.minimize(siamese.loss)
+        sess.run(tf.variables_initializer(optimizer.variables()))
+
+        saver = tf.train.Saver()
+
+        min_loss = (-1, float('inf'))
         for i in trange(num_iterations):
             x1, x2, y_ = sess.run(next_element)
             feed_dict = {
@@ -125,19 +78,92 @@ def train(resume=True):
                 siamese.x2: x2,
                 siamese.y_: y_,
             }
-
             _, loss_v = sess.run([train_step, siamese.loss], feed_dict=feed_dict)
             assert not np.isnan(loss_v), 'Model diverged with loss = NaN'
+            if loss_v < min_loss[1]:
+                min_loss = (i, loss_v)
 
             if i % 100 == 0:
-                tqdm.write(f'step {i}: loss {loss_v}')
+                tqdm.write(f'\nstep {i}: loss {loss_v}\tMinimum loss: {min_loss}')
 
             if (i+1) % 1000 == 0:
-                tqdm.write('Model saved: {}'.format(saver.save(sess, model_path)))
+                tqdm.write('\nModel saved: {}'.format(saver.save(sess, model_path)))
 
         print('Finished:', saver.save(sess, model_path))
 
 
+def plot_confusion_matrix(cm, classes,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    plt.figure(figsize=(10, 10))
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.show()
+
+
+def test():
+    images = np.load('data/images_evaluation.npy')[:40] / 255
+    images = np.expand_dims(images, axis=-1)
+    ground = images[:, 0]
+    print(images.shape, ground.shape)
+
+    model = Siamese()
+    saver = tf.train.Saver()
+    with tf.Session() as sess:
+        saver.restore(sess, model_path)
+
+        preds = [[] for _ in images]
+        with trange(len(images)) as pbar:
+            for i in pbar:
+                for j, image in enumerate(images[i]):
+                    feed_dict = {
+                        model.x1: [image for _ in ground],
+                        model.x2: ground,
+                        model.keep_prob: 1.0,
+                    }
+                    sigmoid = sess.run(model.out, feed_dict)
+                    pred = np.argmax(sigmoid)
+                    preds[i].append(pred)
+
+                    pbar.set_postfix(count='{:02d}'.format(j+1))
+
+    y_true = np.array([[i for _ in images[i]] for i in range(len(images))]).flatten()
+    y_preds = np.array(preds).flatten()
+    cm = confusion_matrix(y_true, y_preds)
+    tp = np.eye(len(cm)) * cm
+    print(np.sum(tp) / np.sum(cm))
+    plot_confusion_matrix(cm, np.arange(len(images)))
+
+
 if __name__ == '__main__':
     with tf.Graph().as_default():
-        train(resume=False)
+        train()
+    with tf.Graph().as_default():
+        test()
+

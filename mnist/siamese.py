@@ -6,7 +6,7 @@ w = 28
 c = 1
 
 
-class Siamese:
+class Siamese(object):
     def __init__(self):
         self.x1 = tf.placeholder(tf.float32, [None, h, w, c])
         self.x2 = tf.placeholder(tf.float32, [None, h, w, c])

@@ -6,7 +6,7 @@ w = 28
 c = 1
 
 
-class Classifier:
+class Classifier(object):
     def __init__(self):
         self.x = tf.placeholder(tf.float32, [None, h, w, c])
         self.y = tf.placeholder(tf.int64, [None])

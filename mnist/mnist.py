@@ -19,7 +19,7 @@ def train():
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        variables_to_restore = slim.get_variables_to_restore(include=['siamese/conv1', 'siamese/conv2'])
+        variables_to_restore = slim.get_variables_to_restore(include=['siamese/conv'])
         restorer = tf.train.Saver(variables_to_restore)
         restorer.restore(sess, 'model/classifier/model')
 

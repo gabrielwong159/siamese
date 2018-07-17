@@ -1,12 +1,10 @@
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
-h = 105
-w = 105
-c = 1
+h, w, c = 105, 105, 1
 
 
-class Siamese:
+class Siamese(object):
     def __init__(self):
         self.x1 = tf.placeholder(tf.float32, [None, h, w, c])
         self.x2 = tf.placeholder(tf.float32, [None, h, w, c])
@@ -17,7 +15,7 @@ class Siamese:
         labels = tf.expand_dims(self.y_, axis=-1)
         cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits)
         regularization_losses = tf.add_n(tf.losses.get_regularization_losses())
-        self.loss = tf.reduce_mean(cross_entropy) + regularization_losses
+        self.loss = tf.reduce_mean(cross_entropy)  # + regularization_losses
         self.out = tf.nn.sigmoid(logits)
 
     def network(self, x1, x2):
@@ -32,17 +30,18 @@ class Siamese:
 
     def convnet(self, x):
         with slim.arg_scope([slim.conv2d],
+                            padding='VALID',
                             weights_regularizer=slim.l2_regularizer(2e-4)):
-            net = slim.conv2d(x, 64, [10, 10], padding='VALID', scope='conv1')
+            net = slim.conv2d(x, 64, [10, 10], scope='conv1')
             net = slim.max_pool2d(net, [2, 2], scope='pool1')
 
-            net = slim.conv2d(net, 128, [7, 7], padding='VALID', scope='conv2')
+            net = slim.conv2d(net, 128, [7, 7], scope='conv2')
             net = slim.max_pool2d(net, [2, 2], scope='pool2')
 
-            net = slim.conv2d(net, 128, [4, 4], padding='VALID', scope='conv3')
+            net = slim.conv2d(net, 128, [4, 4], scope='conv3')
             net = slim.max_pool2d(net, [2, 2], scope='pool3')
 
-            net = slim.conv2d(net, 256, [4, 4], padding='VALID', scope='conv4')
+            net = slim.conv2d(net, 256, [4, 4], scope='conv4')
 
         net = slim.flatten(net, scope='flat')
         net = slim.fully_connected(net, 4096, activation_fn=tf.nn.sigmoid, scope='fc1')

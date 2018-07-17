@@ -1,4 +1,8 @@
 numpy
+scipy
+scikit-learn
+matplotlib
 tensorflow-gpu
 opencv-python
 tqdm
+jupyter
