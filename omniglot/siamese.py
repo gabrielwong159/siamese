@@ -6,21 +6,22 @@ h, w, c = 105, 105, 1
 
 class Siamese(object):
     def __init__(self):
-        self.x1 = tf.placeholder(tf.float32, [None, h, w, c])
-        self.x2 = tf.placeholder(tf.float32, [None, h, w, c])
-        self.y_ = tf.placeholder(tf.float32, [None])
-        self.keep_prob = tf.placeholder(tf.float32)
+        self.x1 = tf.placeholder(tf.float32, [None, h, w, c], name='x1')
+        self.x2 = tf.placeholder(tf.float32, [None, h, w, c], name='x2')
+        self.y_ = tf.placeholder(tf.float32, [None], name='y_')
+        self.keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 
         with tf.variable_scope('siamese') as scope:
             self.o1 = self.network(self.x1)
             scope.reuse_variables()
             self.o2 = self.network(self.x2)
-        self.loss = self.loss_with_spring()
+        regularization_losses = tf.add_n(slim.losses.get_regularization_losses())
+        self.loss = self.loss_with_spring()  # + regularization_losses
 
     def network(self, x):
         with slim.arg_scope([slim.conv2d],
                             padding='VALID',
-                            weights_regularizer=slim.l2_regularizer(2e-4)):
+                            weights_regularizer=slim.l2_regularizer(1e-2)):
             net = slim.conv2d(x, 64, [10, 10], scope='conv1')
             net = slim.max_pool2d(net, [2, 2], scope='pool1')
 
@@ -33,7 +34,10 @@ class Siamese(object):
             net = slim.conv2d(net, 256, [4, 4], scope='conv4')
 
         net = slim.flatten(net, scope='flat')
-        net = slim.fully_connected(net, 4096, activation_fn=None, scope='fc1')
+        net = slim.fully_connected(net, 4096,
+                                   activation_fn=None,
+                                   weights_regularizer=slim.l2_regularizer(1e-4),
+                                   scope='fc1')
         return net
 
     def loss_with_spring(self):

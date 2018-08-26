@@ -69,11 +69,17 @@ Images in the `images_evaluation` folder were used for testing. We use 20 classe
 | `fc1`      | 20 000    | 50 000       | 1e-5          | L2   | 0.4150    |
 | `fc1`      | 40 000    | 50 000       | 1e-5          | L1   | 0.4000    |
 | `fc1`      | 40 000    | 50 000       | 1e-5          | L2   | 0.4000    |
+| `fc1_reg1` | 20 000    | 50 000       | 1e-5          | L1   | 0.2700    |
+| `fc1_reg1` | 20 000    | 50 000       | 1e-5          | L2   | 0.2725    |
 | `fc2`      | 20 000    | 50 000       | 1e-5          | L1   | 0.2875    |
 | `fc2`      | 20 000    | 50 000       | 1e-5          | L2   | 0.2800    |
 
+
 ##### `fc1`
 Single fully-connected layer with `4096` neurons.
+
+#### `fc1_reg1`
+Regularization with `2e-4` for convolutional layers.
 
 ##### `fc2`
 Two fully-connected layer with `2048` neurons each, `dropout=0.5` between `fc1` and `fc2`. Number of neurons was reduced due to OOM allocations.

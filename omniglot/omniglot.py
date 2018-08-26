@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-import tensorflow.contrib.slim as slim
 import itertools
 import random
 from random import choice, choices, sample, shuffle
@@ -10,18 +9,20 @@ from sklearn.metrics import confusion_matrix
 from siamese import Siamese
 
 random.seed(0)
+tf.set_random_seed(0)
 
 model_path = 'model/omniglot/model'
 h, w, c = 105, 105, 1
 
 
 def train():
-    n_samples = 40_000
+    n_samples = 20_000
     learning_rate = 1e-5
-    num_iterations = 50_000
+    num_iterations = 500_000
     batch_size = 32
 
     filenames = np.load('data/images_background_filenames.npy')
+
     print(filenames.shape)
 
     pairs = []
@@ -34,8 +35,6 @@ def train():
         class_1, class_2 = choices(filenames, k=2)
         im_1, im_2 = choice(class_1), choice(class_2)
         pairs.append((im_1, im_2, 0.0))
-
-    shuffle(pairs)
 
     def _parse(x1, x2, y_):
         def str_to_img(s):
@@ -50,7 +49,7 @@ def train():
     x1, x2, y_ = map(np.array, zip(*pairs))
     dataset = tf.data.Dataset.from_tensor_slices((x1, x2, y_)) \
                              .map(_parse, num_parallel_calls=8) \
-                             .repeat(-1) \
+                             .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=len(pairs))) \
                              .batch(batch_size) \
                              .prefetch(batch_size)
     iterator = dataset.make_one_shot_iterator()
@@ -74,6 +73,7 @@ def train():
                 siamese.x1: x1,
                 siamese.x2: x2,
                 siamese.y_: y_,
+                siamese.keep_prob: 0.5,
             }
             _, loss_v = sess.run([train_step, siamese.loss], feed_dict=feed_dict)
             assert not np.isnan(loss_v), 'Model diverged with loss = NaN'
@@ -81,10 +81,10 @@ def train():
                 min_loss = (i, loss_v)
 
             if i % 100 == 0:
-                tqdm.write(f'\nstep {i}: loss {loss_v} Minimum loss: {min_loss}')
+                tqdm.write(f'step {i}: loss {loss_v} Minimum loss: {min_loss}')
 
             if (i+1) % 1000 == 0:
-                tqdm.write('\nModel saved: {}'.format(saver.save(sess, model_path)))
+                tqdm.write('Model saved: {}'.format(saver.save(sess, model_path)))
 
         print('Finished:', saver.save(sess, model_path))
 
@@ -99,9 +99,6 @@ def plot_confusion_matrix(cm, classes,
     """
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        print("Normalized confusion matrix")
-    else:
-        print('Confusion matrix, without normalization')
 
     plt.figure(figsize=(10, 10))
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
@@ -124,28 +121,34 @@ def plot_confusion_matrix(cm, classes,
     plt.show()
 
 
-def test():
+def test(dist_type):
+    if dist_type == 'L1': dist_fn = np.abs
+    elif dist_type == 'L2': dist_fn = np.square
+    else: raise ValueError("dist_type should be 'L1' or 'L2', given {}".format(dist_type))
+
     images = np.load('data/images_evaluation.npy')[:20] / 255
     images = np.expand_dims(images, axis=-1)
     ground = images[:, 0]
 
-    model = Siamese()
+    siamese = Siamese()
     saver = tf.train.Saver()
     with tf.Session() as sess:
         saver.restore(sess, model_path)
 
-        ground_scores = sess.run(model.o1, feed_dict={
-            model.x1: ground,
+        ground_scores = sess.run(siamese.o1, feed_dict={
+            siamese.x1: ground,
+            siamese.keep_prob: 1.0,
         })
 
         preds = [[] for _ in images]
-        for i in trange(len(images)):
-            batch_scores = sess.run(model.o1, feed_dict={
-                model.x1: images[i]
+        for i in trange(len(images), desc=dist_type):
+            batch_scores = sess.run(siamese.o1, feed_dict={
+                siamese.x1: images[i],
+                siamese.keep_prob: 1.0,
             })
 
             for score in batch_scores:
-                dist = np.sum(np.abs(ground_scores - score), axis=-1)
+                dist = np.sum(dist_fn(ground_scores - score), axis=-1)
                 pred = np.argmin(dist)
                 preds[i].append(pred)
 
@@ -153,13 +156,15 @@ def test():
     y_preds = np.array(preds).flatten()
     cm = confusion_matrix(y_true, y_preds)
     tp = np.eye(len(cm)) * cm
-    print(np.sum(tp) / np.sum(cm))
+    print(dist_type, np.sum(tp) / np.sum(cm))
     plot_confusion_matrix(cm, np.arange(len(images)))
 
 
 if __name__ == '__main__':
     with tf.Graph().as_default():
-        pass  # train()
+        train()
     with tf.Graph().as_default():
-        test()
+        test('L1')
+    with tf.Graph().as_default():
+        test('L2')
 
