@@ -7,4 +7,5 @@ __pycache__
 # Data
 data
 model
+summaries
 *.npy
