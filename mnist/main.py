@@ -23,8 +23,8 @@ def train_cls():
 
     saver = tf.train.Saver()
     with tf.Session() as sess:
-        train_writer = tf.summary.FileWriter(join(FLAGS.summaries, 'classifier', 'train'), sess.graph)
-        test_writer = tf.summary.FileWriter(join(FLAGS.summaries, 'classifier', 'test'))
+        train_writer = tf.summary.FileWriter(join(FLAGS.summaries_dir, 'classifier', 'train'), sess.graph)
+        test_writer = tf.summary.FileWriter(join(FLAGS.summaries_dir, 'classifier', 'test'))
         sess.run(tf.global_variables_initializer())
 
         feed_shape = [-1, FLAGS.h, FLAGS.w, FLAGS.c]
@@ -85,7 +85,7 @@ def train_siamese(restore):
     restorer = tf.train.import_meta_graph(FLAGS.cls_model + '.meta', import_scope='siamese/conv')
     saver = tf.train.Saver()
     with tf.Session() as sess:
-        train_writer = tf.summary.FileWriter(join(FLAGS.summaries, 'siamese', 'train'), sess.graph)
+        train_writer = tf.summary.FileWriter(join(FLAGS.summaries_dir, 'siamese', 'train'), sess.graph)
         sess.run(tf.global_variables_initializer())
         if restore:
             restorer.restore(sess, FLAGS.cls_model)
@@ -154,41 +154,8 @@ def test_classification():
     print('Final accuracy:', sum(accuracies) / len(accuracies))
 
 
-def test_similarity():
-    tf.reset_default_graph()
-
-    siamese = Siamese()
-    saver = tf.train.Saver()
-    with tf.Session() as sess:
-        saver.restore(sess, FLAGS.siamese_model)
-
-        feed_shape = [-1, FLAGS.h, FLAGS.w, FLAGS.c]
-        accuracies = []
-        for i in trange(128, desc='Evaluating test images'):
-            x1, y1 = mnist.test.next_batch(FLAGS.siamese_batch)
-            x2, y2 = mnist.test.next_batch(FLAGS.siamese_batch)
-            x1 = x1.reshape(feed_shape)
-            x2 = x2.reshape(feed_shape)
-            y_true = (y1 == y2)
-
-            d = sess.run(siamese.inference, feed_dict={
-                siamese.x1: x1,
-                siamese.x2: x2,
-                siamese.keep_prob: 1.0,
-            })
-            y_pred = d < 0.5
-            accuracies.append(np.sum(y_pred == y_true) / 128)
-
-    print('Final accuracy:', sum(accuracies) / len(accuracies))
-
-
 if __name__ == '__main__':
     train_cls()
-    test_cls()
-    train_siamese(restore=False)
-    test_classification()
-    test_similarity()
-
-# restore - 0.9897987435114921
-# scratch - 0.9890955086310417
-# similarity - 0.9385986328125
+    test_cls()  # 0.9940597248524428
+    train_siamese(restore=True)
+    test_classification()  # 0.9923008041716308

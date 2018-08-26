@@ -21,4 +21,4 @@ tf.app.flags.DEFINE_integer('siamese_iters', 20_000, 'Siamese training iteration
 # Directories
 tf.app.flags.DEFINE_string('cls_model', 'model/cls/model', 'Path to saved Classifier')
 tf.app.flags.DEFINE_string('siamese_model', 'model/siamese/model', 'Path to saved Siamese model')
-tf.app.flags.DEFINE_string('summaries', 'summaries', 'Path to save TF summaries')
+tf.app.flags.DEFINE_string('summaries_dir', 'summaries', 'Path to save TF summaries')

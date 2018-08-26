@@ -38,16 +38,12 @@ We start with [MNIST](http://yann.lecun.com/exdb/mnist/) to test our implementat
 | `3757780`   | `3x3`             | 0.9890   | 2 layer conv + 2 layer FC (out)          |
 
 #### Transfer learning
-We first train a CNN on an MNIST classification task, achieving `99.54%` accuracy on the test set. We then transfer the weights from the convolutional layers to the Siamese CNN before training the Siamese model with `learning_rate=1e-4` over `10,000` iterations. This achieved a test accuracy of `98.99%`, higher than the current maximum attained without transfer learning.
+We first train a CNN on an MNIST classification task, achieving `99.37%` accuracy on the test set. We then transfer the weights from the convolutional layers to the Siamese CNN before training the Siamese model with `learning_rate=1e-4` over `10,000` iterations. This achieved a test accuracy of `98.99%`, higher than the current maximum attained without transfer learning.
 
 #### Testing
-##### Classification
 ![MNIST images for evaluation](https://i.imgur.com/N93KaOF.png)
 
 For each of the ground truth images above, we obtain its output vector via the model. Then, for each image that we are evaluating, we obtain its output vector as well, then find the closest ground truth vector to it via L1- or L2-dist.
-
-##### Similarity
-We take 128 batches of test images to determine if the model is able to correctly determine if images are similar or dissimilar. Accuracy obtained was `93.85%`.
 
 ## Omniglot
 The [Omniglot](https://github.com/brendenlake/omniglot) dataset is typically used for one-shot learning, as it contains a large number of classes, with few training samples per class.
