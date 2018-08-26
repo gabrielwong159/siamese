@@ -18,3 +18,6 @@ tf.app.flags.DEFINE_integer('n_iters', 500_000, 'Siamese training iterations')
 # Directories
 tf.app.flags.DEFINE_string('model_path', 'model/siamese/model', 'Path to saved Siamese model')
 tf.app.flags.DEFINE_string('summaries_dir', 'summaries', 'Path to save TF summaries')
+
+# Testing parameters
+tf.app.flags.DEFINE_integer('n_test_classes', 20, 'Number of classes for testing')

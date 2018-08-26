@@ -8,6 +8,18 @@ from os.path import join
 FLAGS = tf.app.flags.FLAGS
 
 
+def get_files(train, src='data'):
+    if train:
+        src = join(src, 'images_background')
+    else:
+        src = join(src, 'images_evaluation')
+
+    alphabets = [join(src, f) for f in os.listdir(src)]
+    characters = [join(a, f) for a in alphabets for f in os.listdir(a)]
+    files = [[join(c, f) for f in os.listdir(c)] for c in characters]
+    return files
+
+
 def _parse_function(f1, f2, label):
     def file_to_img(f):
         image_string = tf.read_file(f)
@@ -21,15 +33,7 @@ def _parse_function(f1, f2, label):
 
 
 def get_dataset(train, src='data'):
-    if train:
-        src = join(src, 'images_background')
-    else:
-        src = join(src, 'images_evaluation')
-
-    alphabets = [join(src, f) for f in os.listdir(src)]
-    characters = [join(a, f) for a in alphabets for f in os.listdir(a)]
-    files = [[join(c, f) for f in os.listdir(c)] for c in characters]
-
+    files = get_files(train, src)
     pairs = []
     for l in files:  # for each folder of a character
         pairs.extend(itertools.combinations(l, 2))  # take all possible pairs
