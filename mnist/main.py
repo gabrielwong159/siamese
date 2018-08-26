@@ -40,8 +40,8 @@ def train_cls():
 
             if i % 500 == 0:
                 summary = sess.run(merged_summaries, feed_dict={
-                    classifier.x: mnist.test.images.reshape(feed_shape)[:5000],
-                    classifier.y: mnist.test.labels[:5000],
+                    classifier.x: mnist.test.images.reshape(feed_shape),
+                    classifier.y: mnist.test.labels,
                     classifier.keep_prob: 1.0,
                 })
                 test_writer.add_summary(summary, i)
