@@ -4,8 +4,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 from os.path import join
 from tqdm import tqdm, trange
 import flags
-from classifier import Classifier
-from siamese import Siamese
+from models import Classifier, Siamese
 
 FLAGS = tf.app.flags.FLAGS
 mnist = input_data.read_data_sets('data/MNIST_data/', one_hot=False)
@@ -112,7 +111,7 @@ def train_siamese(restore):
         print('Training complete, model saved:', saver.save(sess, FLAGS.siamese_model))
 
 
-def test_siamese():
+def test_classification():
     tf.reset_default_graph()
 
     feed_shape = [-1, FLAGS.h, FLAGS.w, FLAGS.c]
@@ -155,8 +154,41 @@ def test_siamese():
     print('Final accuracy:', sum(accuracies) / len(accuracies))
 
 
+def test_similarity():
+    tf.reset_default_graph()
+
+    siamese = Siamese()
+    saver = tf.train.Saver()
+    with tf.Session() as sess:
+        saver.restore(sess, FLAGS.siamese_model)
+
+        feed_shape = [-1, FLAGS.h, FLAGS.w, FLAGS.c]
+        accuracies = []
+        for i in trange(128, desc='Evaluating test images'):
+            x1, y1 = mnist.test.next_batch(FLAGS.siamese_batch)
+            x2, y2 = mnist.test.next_batch(FLAGS.siamese_batch)
+            x1 = x1.reshape(feed_shape)
+            x2 = x2.reshape(feed_shape)
+            y_true = (y1 == y2)
+
+            d = sess.run(siamese.inference, feed_dict={
+                siamese.x1: x1,
+                siamese.x2: x2,
+                siamese.keep_prob: 1.0,
+            })
+            y_pred = d < 0.5
+            accuracies.append(np.sum(y_pred == y_true) / 128)
+
+    print('Final accuracy:', sum(accuracies) / len(accuracies))
+
+
 if __name__ == '__main__':
     train_cls()
     test_cls()
     train_siamese(restore=False)
-    test_siamese()
+    test_classification()
+    test_similarity()
+
+# restore - 0.9897987435114921
+# scratch - 0.9890955086310417
+# similarity - 0.9385986328125
