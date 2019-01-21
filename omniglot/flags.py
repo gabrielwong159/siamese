@@ -13,11 +13,11 @@ tf.app.flags.DEFINE_integer('n_samples', 20_000, 'Number of similar/dissimilar p
 
 tf.app.flags.DEFINE_float('lr', 1e-5, 'Siamese learning rate')
 tf.app.flags.DEFINE_integer('batch_size', 32, 'Siamese batch size')
-tf.app.flags.DEFINE_integer('n_iters', 500_000, 'Siamese training iterations')
+tf.app.flags.DEFINE_integer('n_iters', 50_000, 'Siamese training iterations')
 
 # Directories
 tf.app.flags.DEFINE_string('model_path', 'model/siamese/model', 'Path to saved Siamese model')
-tf.app.flags.DEFINE_string('summaries_dir', 'summaries', 'Path to save TF summaries')
+tf.app.flags.DEFINE_string('summaries_dir', 'logs', 'Path to save TF summaries')
 
 # Testing parameters
 tf.app.flags.DEFINE_integer('n_test_classes', 20, 'Number of classes for testing')

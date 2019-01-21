@@ -1,8 +1,9 @@
 import numpy as np
 import tensorflow as tf
-import
+import cv2
 from sklearn.metrics import confusion_matrix
 from tqdm import trange
+
 import flags
 import data_loader as data
 from model import Siamese
@@ -11,8 +12,6 @@ FLAGS = tf.app.flags.FLAGS
 
 
 def train():
-    tf.reset_default_graph()
-
     dataset = data.get_dataset(train=True)
     iterator = dataset.make_one_shot_iterator()
     next_element = iterator.get_next()
@@ -78,7 +77,7 @@ def test():
                 test_preds.append(np.argmin(d))
             preds.append(test_preds)
 
-    y_true = [[i]*len(l) for i, l in enumerate(images)]
+    y_true = [[i]*(len(l)-1) for i, l in enumerate(images)]
     y_true = np.array(y_true).flatten()
     y_pred = np.array(preds).flatten()
     cm = confusion_matrix(y_true, y_pred)
@@ -89,5 +88,8 @@ def test():
 
 
 if __name__ == '__main__':
-    train()
-    test()
+    with tf.Graph().as_default():
+        train()
+    with tf.Graph().as_default():
+        test()
+

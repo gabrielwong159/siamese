@@ -1,5 +1,4 @@
 # One-shot learning with Siamese networks
-## About
 Typical CNN classification methods involve a final fully-connected layer with neurons corresponding to the number of classes. This is suboptimal in situations where the number of classes is large, or changing.
 
 In Siamese CNNs, we extract features from an image and convert it into an n-dimensional vector. We compare this n-dimensional vector with that of another image, and the model is trained such that images of the same class will produce similar vectors.

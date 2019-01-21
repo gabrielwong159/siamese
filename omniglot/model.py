@@ -37,7 +37,7 @@ class Siamese(object):
 
         with slim.arg_scope([slim.fully_connected],
                             weights_regularizer=slim.l2_regularizer(1e-4)):
-            net = slim.fully_connected(net, 4096, activation_fn=None, scope='fc5')
+            net = slim.fully_connected(net, 1024, activation_fn=None, scope='fc5')
         return net
 
     def loss_with_spring(self, dist, labels):

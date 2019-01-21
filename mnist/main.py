@@ -3,10 +3,8 @@ import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 from os.path import join
 from tqdm import tqdm, trange
-import flags
 from models import Classifier, Siamese
 
-FLAGS = tf.app.flags.FLAGS
 mnist = input_data.read_data_sets('data/MNIST_data/', one_hot=False)
 
 
@@ -14,7 +12,7 @@ def train_cls():
     tf.reset_default_graph()
 
     classifier = Classifier()
-    optimizer = tf.train.AdamOptimizer(FLAGS.cls_lr)
+    optimizer = tf.train.AdamOptimizer(1e-4)
     train_step = optimizer.minimize(classifier.loss)
 
     tf.summary.scalar('loss', classifier.loss)
@@ -27,7 +25,7 @@ def train_cls():
         test_writer = tf.summary.FileWriter(join(FLAGS.summaries_dir, 'classifier', 'test'))
         sess.run(tf.global_variables_initializer())
 
-        feed_shape = [-1, FLAGS.h, FLAGS.w, FLAGS.c]
+        feed_shape = [-1, 28, 28, 1]
         for i in trange(FLAGS.cls_iters, desc='Classifier training'):
             x, y = mnist.train.next_batch(FLAGS.cls_batch)
             x = x.reshape(feed_shape)
@@ -46,7 +44,7 @@ def train_cls():
                 })
                 test_writer.add_summary(summary, i)
 
-        print('Training complete, model saved:', saver.save(sess, FLAGS.cls_model))
+        print('Training complete, model saved:', saver.save(sess, 'model/classifier/model'))
 
 
 def test_cls():
